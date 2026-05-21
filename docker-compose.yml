@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  buildingyolo:
+    build: .
+    image: buildingyolo:latest
+    container_name: buildingyolo
+    ports:
+      - "8000:8000"
+    environment:
+      - ROBOFLOW_API_KEY=${ROBOFLOW_API_KEY}
+      - PYTHONIOENCODING=utf-8
+      - TF_CPP_MIN_LOG_LEVEL=3
+    volumes:
+      # Persist models between container restarts
+      - ./models:/app/models
+      # Persist downloaded datasets
+      - ./data:/app/data
+      # Persist logs
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: ["python", "main.py", "--serve"]
+
+  # Separate training service (run once)
+  # docker-compose run --rm trainer
+  trainer:
+    build: .
+    image: buildingyolo:latest
+    container_name: buildingyolo-trainer
+    environment:
+      - ROBOFLOW_API_KEY=${ROBOFLOW_API_KEY}
+      - PYTHONIOENCODING=utf-8
+      - TF_CPP_MIN_LOG_LEVEL=3
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: ["python", "main.py", "--train-only"]
+    profiles:
+      - training
