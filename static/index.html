@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Property Classifier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0f1a;--card:#111827;--border:#1e3050;
+  --blue:#3b82f6;--green:#22c55e;--amber:#f59e0b;--purple:#a855f7;--red:#ef4444;
+  --text:#e2e8f0;--sub:#8892a4;
+}
+body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{padding:14px 28px;background:rgba(11,15,26,.96);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+.brand{font-size:17px;font-weight:700}.brand b{color:var(--blue)}
+.hdr-right{margin-left:auto;display:flex;gap:10px;align-items:center}
+.badge{font-size:10px;padding:3px 10px;border-radius:20px;border:1px solid;letter-spacing:.5px}
+.badge-g{color:var(--green);border-color:var(--green);background:rgba(34,197,94,.08)}
+.badge-r{color:var(--red);border-color:var(--red)}
+.badge-gr{color:var(--sub);border-color:var(--border)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:18px 28px;max-width:1300px;margin:0 auto;width:100%;flex:1}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.analytics-row{padding:0 28px 18px;max-width:1300px;margin:0 auto;width:100%}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px}
+.lbl{font-size:10px;letter-spacing:2px;color:var(--sub);text-transform:uppercase;margin-bottom:12px}
+
+/* Upload zone */
+.drop{border:2px dashed var(--border);border-radius:10px;padding:32px 16px;text-align:center;cursor:pointer;transition:.25s;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;position:relative;overflow:hidden}
+.drop:hover,.drop.drag{border-color:var(--blue);background:rgba(59,130,246,.04)}
+.scan{position:absolute;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);animation:scan 2s linear infinite;opacity:0}
+.drop.scanning .scan{opacity:1}
+@keyframes scan{0%{top:0}100%{top:100%}}
+.drop-ico{font-size:36px;opacity:.4}
+.drop-txt{font-size:12px;color:var(--sub)}
+.browse{background:transparent;border:1px solid var(--blue);color:var(--blue);padding:7px 16px;border-radius:7px;font-size:11px;cursor:pointer;transition:.2s}
+.browse:hover{background:rgba(59,130,246,.1)}
+#prev-wrap{display:none;flex-direction:column;align-items:center;gap:6px;position:relative}
+#prev-img{max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--border);object-fit:contain}
+/* Bounding box overlay canvas */
+#bbox-canvas{position:absolute;top:0;left:0;pointer-events:none}
+.prev-meta{font-size:11px;color:var(--sub)}
+#cls-btn{width:100%;padding:11px;margin-top:10px;border-radius:9px;background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(168,85,247,.08));border:1px solid var(--blue);color:var(--blue);font-size:12px;cursor:pointer;display:none;transition:.25s;letter-spacing:.5px}
+#cls-btn:hover{background:rgba(59,130,246,.18)}
+#cls-btn:disabled{opacity:.4;cursor:not-allowed}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(59,130,246,.3);border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.err{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:7px;padding:9px;color:#f87171;font-size:11px;display:none;margin-top:8px}
+
+/* Results panel */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;gap:8px;opacity:.3}
+.empty-ico{font-size:34px}
+#res{display:none}
+.top-card{border-radius:9px;padding:14px;margin-bottom:14px;border:1px solid rgba(59,130,246,.2);background:rgba(59,130,246,.05)}
+.top-cls{font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.top-meta{font-size:11px;color:var(--sub);margin-top:3px}
+.top-meta b{color:var(--text);font-size:13px}
+.section-lbl{font-size:10px;letter-spacing:1.5px;color:var(--sub);text-transform:uppercase;margin:14px 0 8px}
+/* Bar rows */
+.bar-row{margin-bottom:10px}
+.bar-head{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.bar-track{height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1);width:0}
+/* Detection boxes list */
+.det-list{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
+.det-item{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:11px}
+.det-cls{font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.det-conf{color:var(--sub)}
+
+/* Analytics */
+.an-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:900px){.an-grid{grid-template-columns:1fr 1fr}}
+.an-stat{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px;text-align:center}
+.an-v{font-size:20px;font-weight:700;color:var(--blue)}
+.an-k{font-size:9px;letter-spacing:1.5px;color:var(--sub);text-transform:uppercase;margin-top:3px}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:900px){.chart-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:14px}
+.chart-title{font-size:10px;letter-spacing:1.5px;color:var(--sub);text-transform:uppercase;margin-bottom:10px}
+.chart-wrap{height:170px;position:relative}
+.feed-card{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:14px}
+.feed-list{display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto}
+.feed-item{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11px;animation:fi .3s ease}
+@keyframes fi{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.feed-cls{font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.feed-meta{color:var(--sub)}
+
+footer{display:flex;border-top:1px solid var(--border);background:rgba(11,15,26,.96)}
+.st{flex:1;padding:10px;text-align:center;border-right:1px solid var(--border)}
+.st:last-child{border:none}
+.st-v{font-size:13px;font-weight:700;color:var(--blue)}
+.st-k{font-size:9px;letter-spacing:1.5px;color:var(--sub);text-transform:uppercase;margin-top:2px}
+
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Property <b>Classifier</b></div>
+  <div class="hdr-right">
+    <span class="badge badge-gr" id="b-yolo">YOLOv8n</span>
+    <span class="badge badge-gr" id="b-resnet">ResNet50V2</span>
+    <span class="badge badge-g" id="b-status">
+      <span class="dot" style="background:var(--green)"></span>Online
+    </span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: upload -->
+  <div>
+    <div class="card">
+      <div class="lbl">Image Input</div>
+      <div class="drop" id="drop">
+        <div class="scan"></div>
+        <div id="up-def">
+          <div class="drop-ico">&#9654;</div>
+          <div class="drop-txt">Drop a building image here</div>
+          <button class="browse" onclick="document.getElementById('fi').click()">Browse</button>
+          <div style="font-size:10px;color:#334155">JPEG or PNG</div>
+        </div>
+        <div id="prev-wrap">
+          <div style="position:relative;display:inline-block">
+            <img id="prev-img" alt="">
+            <canvas id="bbox-canvas"></canvas>
+          </div>
+          <div class="prev-meta" id="prev-meta"></div>
+        </div>
+      </div>
+      <input type="file" id="fi" accept="image/jpeg,image/png" style="display:none">
+      <button id="cls-btn" onclick="classify()">&#9654; Classify + Detect</button>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: results -->
+  <div class="card">
+    <div class="lbl">Results</div>
+    <div class="empty" id="empty">
+      <div class="empty-ico">&#9636;</div>
+      <div style="font-size:11px;color:var(--sub)">Upload an image to begin</div>
+    </div>
+    <div id="res">
+      <!-- Classification -->
+      <div class="top-card" id="top-card">
+        <div class="top-cls" id="top-cls">---</div>
+        <div class="top-meta">
+          Confidence: <b id="top-conf">0%</b>
+          &nbsp;&bull;&nbsp; Latency: <b id="top-lat">0ms</b>
+        </div>
+      </div>
+      <div class="section-lbl">Classification Probabilities</div>
+      <div id="clf-bars"></div>
+      <div class="section-lbl">YOLOv8 Detections</div>
+      <div class="det-list" id="det-list">
+        <div style="font-size:11px;color:var(--sub);text-align:center;padding:10px">No detections</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ANALYTICS -->
+<div class="analytics-row">
+  <div style="font-size:10px;letter-spacing:2px;color:var(--sub);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+    <span class="dot" style="background:var(--green);width:6px;height:6px;border-radius:50%;display:inline-block"></span>
+    Live Analytics
+  </div>
+
+  <div class="an-grid">
+    <div class="an-stat"><div class="an-v" id="a-total">0</div><div class="an-k">Predictions</div></div>
+    <div class="an-stat"><div class="an-v" id="a-lat">--ms</div><div class="an-k">Avg Latency</div></div>
+    <div class="an-stat"><div class="an-v" id="a-boxes">0</div><div class="an-k">Boxes Drawn</div></div>
+    <div class="an-stat"><div class="an-v" id="a-cls">4</div><div class="an-k">Classes</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-title">Class Distribution</div>
+      <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Confidence History</div>
+      <div class="chart-wrap"><canvas id="line-chart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="feed-card">
+    <div style="font-size:10px;letter-spacing:1.5px;color:var(--sub);text-transform:uppercase;margin-bottom:8px">Prediction Feed</div>
+    <div class="feed-list" id="feed">
+      <div style="font-size:11px;color:var(--sub);text-align:center;padding:12px">No predictions yet</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="st"><div class="st-v" id="f-preds">0</div><div class="st-k">Predictions</div></div>
+  <div class="st"><div class="st-v">YOLOv8n</div><div class="st-k">Detection</div></div>
+  <div class="st"><div class="st-v">ResNet50V2</div><div class="st-k">Classification</div></div>
+  <div class="st"><div class="st-v">4</div><div class="st-k">Classes</div></div>
+  <div class="st"><div class="st-v" id="f-lat">--ms</div><div class="st-k">Last Latency</div></div>
+</footer>
+
+<script>
+const COLORS={exterior_facade:"#3b82f6",office_interior:"#22c55e",warehouse:"#f59e0b",pipelines:"#a855f7"};
+const DISPLAY={exterior_facade:"Exterior Facade",office_interior:"Office Interior",warehouse:"Warehouse",pipelines:"Pipelines"};
+const RAW=["exterior_facade","office_interior","warehouse","pipelines"];
+let selFile=null,predCount=0,boxCount=0,confHist=[];
+
+// Charts
+let pieChart,lineChart;
+function initCharts(){
+  Chart.defaults.color="#8892a4";
+  pieChart=new Chart(document.getElementById("pie-chart"),{
+    type:"doughnut",
+    data:{labels:RAW.map(r=>DISPLAY[r]),datasets:[{data:[1,1,1,1],backgroundColor:Object.values(COLORS),borderColor:"#111827",borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{font:{size:10},padding:6}}}}
+  });
+  lineChart=new Chart(document.getElementById("line-chart"),{
+    type:"line",
+    data:{labels:[],datasets:[{label:"Confidence %",data:[],borderColor:"#3b82f6",backgroundColor:"rgba(59,130,246,.1)",fill:true,tension:.4,pointRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:0,max:100,grid:{color:"rgba(30,48,80,.4)"},ticks:{color:"#8892a4"}},x:{grid:{display:false},ticks:{color:"#8892a4",maxTicksLimit:6}}},plugins:{legend:{display:false}}}
+  });
+}
+
+// SSE analytics stream
+function startSSE(){
+  const es=new EventSource("/analytics/stream");
+  es.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      document.getElementById("a-total").textContent=d.total;
+      document.getElementById("a-lat").textContent=d.avg_latency+"ms";
+      document.getElementById("f-preds").textContent=d.total;
+      // Pie
+      pieChart.data.datasets[0].data=RAW.map(r=>d.class_counts[r]||0);
+      const tot=RAW.reduce((a,r)=>a+(d.class_counts[r]||0),0);
+      if(tot===0)pieChart.data.datasets[0].data=[1,1,1,1];
+      pieChart.update("none");
+      // Feed
+      if(d.feed&&d.feed.length){
+        document.getElementById("feed").innerHTML=d.feed.map(f=>`
+          <div class="feed-item">
+            <span class="feed-cls" style="color:${COLORS[Object.keys(DISPLAY).find(k=>DISPLAY[k]===f.class)||"exterior_facade"]||"#3b82f6"}">${f.class}</span>
+            <span class="feed-meta">Conf: <b style="color:var(--green)">${f.conf}%</b></span>
+            <span style="color:#475569">${f.boxes} boxes</span>
+            <span style="color:#475569">${f.ms}ms</span>
+            <span style="color:#475569">${f.ts}</span>
+          </div>`).join("");
+      }
+    }catch{}
+  };
+  es.onerror=()=>setTimeout(startSSE,5000);
+}
+
+// Health check
+async function checkHealth(){
+  try{
+    const r=await fetch("/health");
+    const d=await r.json();
+    const by=document.getElementById("b-yolo");
+    const br=document.getElementById("b-resnet");
+    by.className="badge "+(d.yolo_loaded?"badge-g":"badge-r");
+    by.innerHTML=(d.yolo_loaded?'<span class="dot" style="background:var(--green)"></span>':'')+"YOLOv8n";
+    br.className="badge "+(d.resnet_loaded?"badge-g":"badge-r");
+    br.innerHTML=(d.resnet_loaded?'<span class="dot" style="background:var(--green)"></span>':'')+"ResNet50V2";
+  }catch{}
+}
+
+// File handling
+const drop=document.getElementById("drop"),fi=document.getElementById("fi");
+drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("drag")});
+drop.addEventListener("dragleave",()=>drop.classList.remove("drag"));
+drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("drag");if(e.dataTransfer.files[0])handle(e.dataTransfer.files[0])});
+fi.addEventListener("change",()=>{if(fi.files[0])handle(fi.files[0])});
+drop.addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")fi.click()});
+
+function handle(f){
+  if(!f.type.startsWith("image/")){showErr("JPEG or PNG only.");return}
+  selFile=f;
+  const r=new FileReader();
+  r.onload=e=>{
+    document.getElementById("up-def").style.display="none";
+    const pw=document.getElementById("prev-wrap");pw.style.display="flex";
+    const img=document.getElementById("prev-img");
+    img.onload=()=>resizeCanvas();
+    img.src=e.target.result;
+    document.getElementById("prev-meta").textContent=f.name+" ("+Math.round(f.size/1024)+" KB)";
+    document.getElementById("cls-btn").style.display="block";
+    hideErr();
+    drop.classList.add("scanning");
+    setTimeout(()=>drop.classList.remove("scanning"),2000);
+  };
+  r.readAsDataURL(f);
+}
+
+function resizeCanvas(){
+  const img=document.getElementById("prev-img");
+  const cv=document.getElementById("bbox-canvas");
+  cv.width=img.offsetWidth;cv.height=img.offsetHeight;
+  cv.style.width=img.offsetWidth+"px";cv.style.height=img.offsetHeight+"px";
+}
+
+// Draw bounding boxes on canvas
+function drawBoxes(detections,naturalW,naturalH){
+  const img=document.getElementById("prev-img");
+  const cv=document.getElementById("bbox-canvas");
+  const ctx=cv.getContext("2d");
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const scX=cv.width/naturalW;
+  const scY=cv.height/naturalH;
+  detections.forEach(det=>{
+    const[x1,y1,x2,y2]=det.box;
+    const col=COLORS[det.class]||"#ffffff";
+    const sx1=x1*scX,sy1=y1*scY,sw=(x2-x1)*scX,sh=(y2-y1)*scY;
+    ctx.strokeStyle=col;ctx.lineWidth=2.5;
+    ctx.strokeRect(sx1,sy1,sw,sh);
+    // Label bg
+    ctx.fillStyle=col;
+    const txt=`${DISPLAY[det.class]||det.class}  ${Math.round(det.confidence*100)}%`;
+    ctx.font="bold 12px system-ui";
+    const tw=ctx.measureText(txt).width;
+    ctx.fillRect(sx1,sy1-18,tw+8,18);
+    ctx.fillStyle="#fff";
+    ctx.fillText(txt,sx1+4,sy1-4);
+  });
+}
+
+async function classify(){
+  if(!selFile)return;
+  const btn=document.getElementById("cls-btn");
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>Analysing...';
+  drop.classList.add("scanning");hideErr();
+  const fd=new FormData();fd.append("file",selFile);
+  try{
+    const r=await fetch("/predict",{method:"POST",body:fd});
+    if(!r.ok){const e=await r.json();throw new Error(e.detail||"Error")}
+    const d=await r.json();
+    showResults(d);
+    predCount++;
+    document.getElementById("f-preds").textContent=predCount;
+    document.getElementById("f-lat").textContent=d.latency_ms+"ms";
+    document.getElementById("a-boxes").textContent=boxCount;
+  }catch(e){showErr("Error: "+e.message)}
+  finally{btn.disabled=false;btn.innerHTML="&#9654; Classify + Detect";drop.classList.remove("scanning")}
+}
+
+function showResults(d){
+  document.getElementById("empty").style.display="none";
+  document.getElementById("res").style.display="block";
+
+  // Classification
+  const clf=d.classification||{};
+  const cls=clf.top_class||"";
+  const col=COLORS[cls]||"#3b82f6";
+  document.getElementById("top-cls").textContent=clf.top_display||cls;
+  document.getElementById("top-cls").style.color=col;
+  document.getElementById("top-card").style.borderColor=col+"40";
+  document.getElementById("top-card").style.background=col+"08";
+  document.getElementById("top-conf").textContent=Math.round((clf.confidence||0)*100)+"%";
+  document.getElementById("top-lat").textContent=d.latency_ms+"ms";
+
+  // Probability bars
+  const bars=document.getElementById("clf-bars");bars.innerHTML="";
+  (clf.probabilities||[]).forEach(p=>{
+    const c=COLORS[p.class]||"#3b82f6";
+    const pct=Math.round(p.prob*100);
+    const row=document.createElement("div");row.className="bar-row";
+    row.innerHTML=`<div class="bar-head"><span style="color:var(--text)">${p.display||p.class}</span><span style="color:${c};font-weight:600">${pct}%</span></div><div class="bar-track"><div class="bar-fill" style="background:${c}" data-p="${pct}"></div></div>`;
+    bars.appendChild(row);
+  });
+  requestAnimationFrame(()=>document.querySelectorAll(".bar-fill").forEach(b=>b.style.width=b.dataset.p+"%"));
+
+  // Update confidence history
+  if(clf.confidence){
+    confHist.push(Math.round(clf.confidence*100));
+    if(confHist.length>20)confHist.shift();
+    lineChart.data.labels=confHist.map((_,i)=>i+1);
+    lineChart.data.datasets[0].data=confHist;
+    lineChart.update("none");
+  }
+
+  // YOLO detections
+  const det=(d.detection||{}).detections||[];
+  boxCount+=det.length;
+  const dl=document.getElementById("det-list");
+  if(det.length===0){
+    dl.innerHTML='<div style="font-size:11px;color:var(--sub);text-align:center;padding:10px">No detections</div>';
+  }else{
+    dl.innerHTML=det.map(dv=>`
+      <div class="det-item">
+        <span class="det-cls" style="color:${COLORS[dv.class]||'#fff'}">${DISPLAY[dv.class]||dv.class}</span>
+        <span class="det-conf">Conf: <b style="color:var(--green)">${Math.round(dv.confidence*100)}%</b></span>
+        <span style="color:#475569">x:${Math.round(dv.box[0])} y:${Math.round(dv.box[1])}</span>
+      </div>`).join("");
+  }
+
+  // Draw bboxes on canvas
+  if((d.detection||{}).annotated_b64){
+    const img=document.getElementById("prev-img");
+    const nw=img.naturalWidth||img.width;
+    const nh=img.naturalHeight||img.height;
+    drawBoxes(det,nw,nh);
+  }
+}
+
+function showErr(m){const e=document.getElementById("err");e.textContent=m;e.style.display="block"}
+function hideErr(){document.getElementById("err").style.display="none"}
+
+initCharts();checkHealth();startSSE();
+setInterval(checkHealth,30000);
+window.addEventListener("resize",resizeCanvas);
+</script>
+</body>
+</html>
